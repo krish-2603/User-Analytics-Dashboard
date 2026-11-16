@@ -1,0 +1,22 @@
+{
+  "name": "admin-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Admin Dashboard – User Analytics & CSS Generator",
+  "main": "server/index.js",
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "npm --prefix frontend run dev",
+    "build:client": "npm --prefix frontend run build",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"node server/index.js\" \"npm --prefix frontend run dev\"",
+    "start": "node server/index.js",
+    "test": "node test-suite.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.2.0",
+    "cors": "^2.8.5",
+    "express": "^5.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

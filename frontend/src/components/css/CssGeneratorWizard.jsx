@@ -1,0 +1,882 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Code2,
+  Download,
+  Eye,
+  CheckSquare,
+  Square,
+  Sliders,
+  Calendar,
+  FileCode,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Edit2,
+  Palette,
+  Sparkles,
+  Layers,
+  Monitor
+} from 'lucide-react';
+import { api } from '../../services/api';
+
+export default function CssGeneratorWizard({ dateFilter = 'all' }) {
+  // Top Active Mode: 'data-export' or 'appearance'
+  const [activeTab, setActiveTab] = useState('data-export');
+
+  // --- DATA EXPORT STATE ---
+  const [columns, setColumns] = useState([]);
+  const [selectedColumns, setSelectedColumns] = useState([
+    'ip_address',
+    'country_name',
+    'timestamp',
+    'browser',
+    'os',
+    'page_visited',
+    'status_code'
+  ]);
+  const [columnAliases, setColumnAliases] = useState({});
+  const [includeHeaders, setIncludeHeaders] = useState(true);
+  const [filename, setFilename] = useState('user_analytics.css');
+  const [selectedDateRange, setSelectedDateRange] = useState(dateFilter || 'all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Preview state
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTab, setPreviewTab] = useState('css'); // 'css' | 'table'
+  const [downloading, setDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(null);
+
+  // --- APPEARANCE & THEME CUSTOMIZER STATE ---
+  const [accentColor, setAccentColor] = useState('#3b82f6'); // blue
+  const [tableBorderRadius, setTableBorderRadius] = useState('12px');
+  const [tableDensity, setTableDensity] = useState('normal'); // 'compact' | 'normal' | 'spacious'
+  const [zebraStriping, setZebraStriping] = useState(true);
+  const [fontFamily, setFontFamily] = useState('ui-monospace, SFMono-Regular, Menlo, monospace');
+  const [themeApplied, setThemeApplied] = useState(false);
+
+  // Load available columns
+  useEffect(() => {
+    api.getCssColumns().then(cols => {
+      if (cols) {
+        setColumns(cols);
+        const defaultMap = {};
+        cols.forEach(c => {
+          defaultMap[c.key] = c.label;
+        });
+        setColumnAliases(defaultMap);
+      }
+    }).catch(err => console.error('Error fetching columns:', err));
+  }, []);
+
+  // Update preview whenever export parameters change
+  const fetchPreview = async () => {
+    setPreviewLoading(true);
+    setDownloadSuccess(null);
+    try {
+      const data = await api.previewCss({
+        selectedColumns,
+        columnAliases,
+        includeHeaders,
+        dateFilter: selectedDateRange,
+        startDate: selectedDateRange === 'custom' ? startDate : '',
+        endDate: selectedDateRange === 'custom' ? endDate : ''
+      });
+      setPreviewData(data);
+    } catch (err) {
+      console.error('Error generating CSS preview:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedColumns.length > 0) {
+      fetchPreview();
+    }
+  }, [selectedColumns, columnAliases, includeHeaders, selectedDateRange, startDate, endDate]);
+
+  const toggleColumn = (key) => {
+    setSelectedColumns(prev =>
+      prev.includes(key)
+        ? prev.filter(k => k !== key)
+        : [...prev, key]
+    );
+  };
+
+  const selectAllColumns = () => {
+    setSelectedColumns(columns.map(c => c.key));
+  };
+
+  const deselectAllColumns = () => {
+    setSelectedColumns([]);
+  };
+
+  const resetDefaultColumns = () => {
+    const defaults = columns.filter(c => c.defaultSelected).map(c => c.key);
+    setSelectedColumns(defaults);
+    const resetAliases = {};
+    columns.forEach(c => {
+      resetAliases[c.key] = c.label;
+    });
+    setColumnAliases(resetAliases);
+  };
+
+  const handleAliasChange = (key, newAlias) => {
+    setColumnAliases(prev => ({
+      ...prev,
+      [key]: newAlias
+    }));
+  };
+
+  // Download Handler for CSS File
+  const handleDownload = async () => {
+    if (selectedColumns.length === 0) return;
+    setDownloading(true);
+    setDownloadSuccess(null);
+
+    try {
+      let targetFile = filename || 'user_analytics.css';
+      if (!targetFile.toLowerCase().endsWith('.css')) {
+        targetFile = targetFile.replace(/\.[^/.]+$/, '') + '.css';
+      }
+
+      await api.downloadCss({
+        selectedColumns,
+        columnAliases,
+        includeHeaders,
+        filename: targetFile,
+        dateFilter: selectedDateRange,
+        startDate: selectedDateRange === 'custom' ? startDate : '',
+        endDate: selectedDateRange === 'custom' ? endDate : ''
+      });
+
+      setDownloadSuccess({
+        filename: targetFile
+      });
+      setTimeout(() => setDownloadSuccess(null), 5000);
+    } catch (err) {
+      console.error('CSS file download error:', err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Generate dynamic CSS theme code
+  const generatedThemeCss = `/**
+ * Custom Admin Dashboard Theme Stylesheet
+ * Generated by Admin Dashboard Appearance Studio
+ * Accent: ${accentColor} | Radius: ${tableBorderRadius} | Density: ${tableDensity}
+ */
+
+:root {
+  --admin-accent-color: ${accentColor};
+  --admin-accent-glow: ${accentColor}40;
+  --admin-table-radius: ${tableBorderRadius};
+  --admin-font-family: ${fontFamily};
+  --admin-cell-padding: ${tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px'};
+}
+
+/* Customized Dashboard Analytics Table */
+.custom-theme-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--admin-table-radius);
+  overflow: hidden;
+  font-family: var(--admin-font-family);
+}
+
+.custom-theme-table th {
+  background-color: #0f172a;
+  color: #94a3b8;
+  font-weight: 600;
+  padding: var(--admin-cell-padding);
+  border-bottom: 2px solid ${accentColor}50;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.custom-theme-table td {
+  padding: var(--admin-cell-padding);
+  border-bottom: 1px solid #1e293b;
+}
+
+${zebraStriping ? `
+.custom-theme-table tbody tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.4);
+}
+` : ''}
+
+.custom-theme-table tbody tr:hover {
+  background-color: ${accentColor}15 !important;
+  transition: background-color 0.15s ease;
+}
+
+/* Custom Highlight Badges */
+.custom-badge-accent {
+  background-color: ${accentColor}20;
+  color: ${accentColor};
+  border: 1px solid ${accentColor}40;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-weight: 600;
+}`;
+
+  // Apply Theme CSS to live document
+  const handleApplyThemeLive = () => {
+    const styleId = 'admin-dynamic-custom-theme';
+    let styleTag = document.getElementById(styleId);
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+    styleTag.innerHTML = generatedThemeCss;
+    document.documentElement.style.setProperty('--primary-accent', accentColor);
+    setThemeApplied(true);
+    setTimeout(() => setThemeApplied(false), 4000);
+  };
+
+  // Download theme CSS stylesheet file
+  const handleDownloadThemeCss = () => {
+    const blob = new Blob([generatedThemeCss], { type: 'text/css;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'dashboard-theme.css');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Top Banner & Module Header */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold mb-2">
+            <Code2 className="w-3.5 h-3.5" />
+            Module 2: CSS Generator
+          </div>
+          <h2 className="text-xl font-bold text-white tracking-tight">
+            CSS Generator & Appearance Customizer
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Customize exported data columns, column names, date ranges, and appearance styling before downloading valid CSS files.
+          </p>
+        </div>
+
+        {/* Action Button: "Download CSS" as specified in Module 2.2 */}
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={handleDownload}
+            disabled={downloading || selectedColumns.length === 0}
+            className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+            title="Generate and download a valid CSS file using the selected data"
+          >
+            {downloading ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                <span>Generating CSS...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 text-white" />
+                <span>Download CSS</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Mode Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveTab('data-export')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'data-export'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>2.1 Customize Exported Data (Columns & Date Range)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('appearance')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+            activeTab === 'appearance'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5" />
+          <span>2.1 Customize Appearance (Theme CSS Studio)</span>
+        </button>
+      </div>
+
+      {/* Success Notification */}
+      {downloadSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-200 text-xs flex items-center justify-between animate-in fade-in shadow-lg">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <div>
+              <p className="font-semibold text-white">
+                CSS File Generated & Downloaded!
+              </p>
+              <p className="text-[11px] text-emerald-300">
+                File "{downloadSuccess.filename}" downloaded successfully with valid CSS data rules and escaped characters.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 1: DATA EXPORT WIZARD (Module 2.1 & 2.2) */}
+      {activeTab === 'data-export' && (
+        <div className="space-y-6">
+          {/* Customization Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left: Column Selection & Renaming */}
+            <div className="lg:col-span-2 space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4 text-blue-400" />
+                      Select & Customize Column Names
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Select which columns to export and specify custom column names.
+                    </p>
+                  </div>
+
+                  {/* Bulk Select Controls */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={selectAllColumns}
+                      className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deselectAllColumns}
+                      className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer"
+                    >
+                      None
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetDefaultColumns}
+                      className="px-2.5 py-1 rounded bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer"
+                    >
+                      Default
+                    </button>
+                  </div>
+                </div>
+
+                {/* Columns List with editable alias */}
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                  {columns.map((col) => {
+                    const isSelected = selectedColumns.includes(col.key);
+                    const currentAlias = columnAliases[col.key] || col.label;
+
+                    return (
+                      <div
+                        key={col.key}
+                        className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+                          isSelected
+                            ? 'bg-slate-800/80 border-slate-700'
+                            : 'bg-slate-900/40 border-slate-800/80 opacity-60'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <button
+                          type="button"
+                          onClick={() => toggleColumn(col.key)}
+                          className="text-blue-400 hover:text-blue-300 shrink-0 cursor-pointer"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-blue-400" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-400" />
+                          )}
+                        </button>
+
+                        {/* Column Key & Type */}
+                        <div className="w-36 shrink-0 min-w-0">
+                          <span className="font-mono text-xs text-slate-200 block truncate">
+                            {col.key}
+                          </span>
+                          <span className="text-[10px] text-slate-400 uppercase">
+                            {col.type}
+                          </span>
+                        </div>
+
+                        {/* Editable Header Alias */}
+                        <div className="flex-1 flex items-center gap-2">
+                          <Edit2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <input
+                            type="text"
+                            disabled={!isSelected}
+                            value={currentAlias}
+                            onChange={(e) => handleAliasChange(col.key, e.target.value)}
+                            placeholder="Custom column name..."
+                            className="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Date Range, Headers & Filename Controls */}
+            <div className="space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-slate-800">
+                  <Sliders className="w-4 h-4 text-indigo-400" />
+                  CSS Export Settings
+                </h3>
+
+                {/* Date Range Selection */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    Choose Date Range
+                  </label>
+                  <select
+                    value={selectedDateRange}
+                    onChange={(e) => setSelectedDateRange(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">All Historical Records</option>
+                    <option value="today">Today Only</option>
+                    <option value="last7days">Last 7 Days</option>
+                    <option value="last30days">Last 30 Days</option>
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+
+                  {/* Custom Date Pickers */}
+                  {selectedDateRange === 'custom' && (
+                    <div className="mt-2 space-y-2 pt-2 border-t border-slate-800">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">Start Date</span>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block mb-0.5">End Date</span>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Include Column Headers Toggle */}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-300 block">Include Headers</span>
+                    <span className="text-[11px] text-slate-400">Include header attributes in CSS</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeHeaders(prev => !prev)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      includeHeaders ? 'bg-blue-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        includeHeaders ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Meaningful Target Filename */}
+                <div className="pt-2 border-t border-slate-800">
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center gap-1.5">
+                    <FileCode className="w-3.5 h-3.5 text-slate-400" />
+                    CSS Filename
+                  </label>
+                  <input
+                    type="text"
+                    value={filename}
+                    onChange={(e) => setFilename(e.target.value)}
+                    placeholder="user_analytics.css"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Special characters and strings are properly escaped.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview Before Downloading (Module 2.1) */}
+          <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                  Preview CSS Data Before Downloading
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Inspect the valid CSS stylesheet rules or data grid before saving
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('css')}
+                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                      previewTab === 'css' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Valid CSS Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('table')}
+                    className={`px-3 py-1 rounded-md transition-all cursor-pointer ${
+                      previewTab === 'table' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Data Grid
+                  </button>
+                </div>
+
+                {/* Metadata Stats */}
+                {previewData && (
+                  <span className="text-xs font-mono text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
+                    {previewData.totalRows} records • ~{(previewData.byteSize / 1024).toFixed(1)} KB
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Preview Container */}
+            {previewLoading ? (
+              <div className="py-16 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                Generating CSS preview...
+              </div>
+            ) : previewTab === 'css' ? (
+              /* Valid CSS Preview */
+              <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-cyan-300 overflow-x-auto max-h-80 whitespace-pre">
+                {previewData?.cssPreview || '/* No CSS data generated */'}
+              </div>
+            ) : (
+              /* Tabular Grid Preview */
+              <div className="overflow-x-auto rounded-xl border border-slate-800 max-h-80">
+                <table className="w-full text-left text-xs text-slate-300">
+                  <thead className="bg-slate-800/90 uppercase text-[10px] tracking-wider text-slate-300 border-b border-slate-700 sticky top-0">
+                    <tr>
+                      {(previewData?.headerLabels || []).map((header, idx) => (
+                        <th key={idx} className="py-2.5 px-3 font-semibold whitespace-nowrap">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-sans">
+                    {(previewData?.previewRows || []).map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-800/40">
+                        {(previewData?.headerLabels || []).map((colName, cIdx) => (
+                          <td key={cIdx} className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-slate-300">
+                            {String(row[colName] !== undefined ? row[colName] : '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+
+                    {(!previewData?.previewRows || previewData.previewRows.length === 0) && (
+                      <tr>
+                        <td
+                          colSpan={(previewData?.headerLabels?.length || 1)}
+                          className="py-12 text-center text-slate-400"
+                        >
+                          No records match the current date filter.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: CUSTOMIZE APPEARANCE & THEME CSS STUDIO */}
+      {activeTab === 'appearance' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Appearance Controls */}
+            <div className="lg:col-span-1 space-y-4">
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-5">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-purple-400" />
+                    Appearance Controls
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Configure theme variables, table borders, and colors
+                  </p>
+                </div>
+
+                {/* Accent Color Picker */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-2">
+                    Primary Brand Accent Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[
+                      { hex: '#3b82f6', label: 'Blue' },
+                      { hex: '#6366f1', label: 'Indigo' },
+                      { hex: '#10b981', label: 'Emerald' },
+                      { hex: '#8b5cf6', label: 'Purple' },
+                      { hex: '#f59e0b', label: 'Amber' },
+                      { hex: '#ec4899', label: 'Rose' },
+                      { hex: '#06b6d4', label: 'Cyan' }
+                    ].map((c) => (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => setAccentColor(c.hex)}
+                        title={c.label}
+                        className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                          accentColor === c.hex ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-80 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Table Border Radius */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-2">
+                    Table Corner Radius
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs">
+                    {['4px', '8px', '12px', '16px'].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setTableBorderRadius(r)}
+                        className={`py-1.5 px-2 rounded-lg font-mono text-[11px] transition-all cursor-pointer ${
+                          tableBorderRadius === r
+                            ? 'bg-blue-600 text-white font-bold'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Table Density */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-2">
+                    Row Density / Spacing
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs">
+                    {[
+                      { id: 'compact', label: 'Compact' },
+                      { id: 'normal', label: 'Normal' },
+                      { id: 'spacious', label: 'Spacious' }
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setTableDensity(d.id)}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          tableDensity === d.id
+                            ? 'bg-blue-600 text-white font-bold'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Zebra Striping Toggle */}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-300 block">Zebra Striping</span>
+                    <span className="text-[11px] text-slate-400">Alternate table row shading</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setZebraStriping(prev => !prev)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      zebraStriping ? 'bg-blue-600' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        zebraStriping ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyThemeLive}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Apply Theme to Dashboard</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadThemeCss}
+                    className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Theme CSS</span>
+                  </button>
+                </div>
+
+                {themeApplied && (
+                  <div className="p-2.5 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Theme applied live to current session!</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Live Interactive Component Preview & CSS Code */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Interactive Preview Widget */}
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Monitor className="w-4 h-4 text-emerald-400" />
+                    Real-Time Styled Component Preview
+                  </h3>
+                  <span
+                    className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: `${accentColor}20`, color: accentColor, border: `1px solid ${accentColor}40` }}
+                  >
+                    Live Preview
+                  </span>
+                </div>
+
+                {/* Styled Table Demo */}
+                <div
+                  className="border border-slate-800 overflow-hidden shadow-inner"
+                  style={{ borderRadius: tableBorderRadius }}
+                >
+                  <table className="w-full text-left text-xs text-slate-200">
+                    <thead style={{ backgroundColor: '#0f172a', borderBottom: `2px solid ${accentColor}60` }}>
+                      <tr>
+                        <th style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>IP Address</th>
+                        <th style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>Country</th>
+                        <th style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>Browser</th>
+                        <th style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>Page</th>
+                        <th style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { ip: '8.8.8.8', country: 'United States', flag: '🇺🇸', browser: 'Chrome 130', page: '/pricing', status: '200 OK' },
+                        { ip: '151.101.65.140', country: 'United Kingdom', flag: '🇬🇧', browser: 'Safari 18', page: '/dashboard', status: '200 OK' },
+                        { ip: '194.25.0.1', country: 'Germany', flag: '🇩🇪', browser: 'Firefox 132', page: '/features', status: '200 OK' },
+                        { ip: '133.242.0.1', country: 'Japan', flag: '🇯🇵', browser: 'Edge 130', page: '/docs/api', status: '201 Created' }
+                      ].map((item, idx) => (
+                        <tr
+                          key={idx}
+                          style={{
+                            backgroundColor: zebraStriping && idx % 2 === 1 ? 'rgba(30, 41, 59, 0.4)' : 'transparent',
+                            borderBottom: '1px solid #1e293b'
+                          }}
+                        >
+                          <td style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }} className="font-mono text-blue-400">
+                            {item.ip}
+                          </td>
+                          <td style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span>{item.flag}</span>
+                              <span>{item.country}</span>
+                            </span>
+                          </td>
+                          <td style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }} className="text-slate-400">
+                            {item.browser}
+                          </td>
+                          <td style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>
+                            <span className="font-mono bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                              {item.page}
+                            </span>
+                          </td>
+                          <td style={{ padding: tableDensity === 'compact' ? '6px 10px' : tableDensity === 'spacious' ? '14px 18px' : '10px 14px' }}>
+                            <span
+                              className="px-2 py-0.5 rounded text-[10px] font-bold"
+                              style={{ backgroundColor: `${accentColor}25`, color: accentColor, border: `1px solid ${accentColor}40` }}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Generated CSS Code Box */}
+              <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-cyan-400" />
+                    Generated CSS Theme Stylesheet
+                  </h3>
+                  <button
+                    onClick={handleDownloadThemeCss}
+                    className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download .css</span>
+                  </button>
+                </div>
+                <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 font-mono text-xs text-cyan-300 overflow-x-auto max-h-56 whitespace-pre">
+                  {generatedThemeCss}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
